@@ -1,0 +1,117 @@
+const userSchema = new mongoose.Schema({
+  user: String,
+  salt: String,
+  password: String,
+  name: String,
+  date_create: Date,
+});
+const User = mongoose.model('User', userSchema);
+
+app.post('/user/login', validateLogin, async (req, res) => {
+  const { user, password } = req.body;
+
+  try {
+    const existingUser = await User.findOne({ user });
+
+    if (!existingUser) {
+      return res.status(401).json({ error: 'Usuario no encontrado' });
+    }
+
+    const isPasswordValid = bcrypt.compareSync(password, existingUser.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+
+    const token = jwt.sign({ userId: existingUser._id }, process.env.JWT_SECRET);
+    res.json({ token });
+  } catch (error) {
+    console.error('Error al iniciar sesión', error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+
+
+app.get('/user/:id', validateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await User.findById(id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Error al obtener el usuario', error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+
+
+app.post('/user', validateUser, async (req, res) => {
+  const { user, password, name } = req.body;
+  const salt = bcrypt.genSaltSync(10);
+  const hashedPassword = bcrypt.hashSync(password, salt);
+
+  const newUser = new User({
+    user,
+    salt,
+    password: hashedPassword,
+    name,
+    date_create: new Date(),
+  });
+
+  try {
+    const savedUser = await newUser.save();
+    res.json(savedUser);
+  } catch (error) {
+    console.error('Error al registrar el usuario', error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+
+
+app.put('/user/:id', validateToken, async (req, res) => {
+  const { id } = req.params;
+  const { user, password, name } = req.body;
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(id, {
+      user,
+      password,
+      name,
+    });
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('Error al actualizar el usuario', error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+
+app.delete('/user/:id', validateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const deletedUser = await User.findByIdAndDelete(id);
+
+    if (!deletedUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json({ message: 'Usuario eliminado correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar el usuario', error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
